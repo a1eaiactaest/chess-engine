@@ -8,6 +8,7 @@ const MaxVal = 100000
 
 type Game struct {
 	game              *chess.Game
+	position          *chess.Position
 	leavesExplored    int
 	pieceValues       map[chess.PieceType]int
 	pieceSquareTables map[chess.PieceType][]int
@@ -97,6 +98,7 @@ func NewGame(fen string) (*Game, error) {
 
 	return &Game{
 		game:              game,
+		position:          game.Position(),
 		leavesExplored:    0,
 		pieceValues:       pieceValues,
 		pieceSquareTables: pieceSquareTables,
@@ -139,3 +141,100 @@ type MoveScore struct {
 	moves []chess.Move
 	score int
 }
+
+func (g *Game) Minmax(
+	fromBot int,
+	depth int,
+	lastMove *chess.Move,
+	alpha int,
+	beta int,
+	isMax bool) MoveScore {
+
+	moveTree := make([]chess.Move, 0)
+
+	if lastMove != nil {
+		moveTree = append(moveTree, *lastMove)
+	}
+
+	if fromBot == 0 {
+		return MoveScore{moveTree, g.Evaluate()}
+	}
+
+	moves := g.game.ValidMoves()
+
+	if len(moves) == 0 {
+		if g.game.Outcome() == chess.WhiteWon {
+			return MoveScore{moveTree, MaxVal}
+		} else if g.game.Outcome() == chess.BlackWon {
+			return MoveScore{moveTree, -MaxVal}
+		}
+		return MoveScore{moveTree, 0}
+	}
+
+	var bestScore int
+	var bestMove chess.Move
+
+	if isMax {
+		bestScore = -MaxVal
+		for _, move := range moves {
+			g.leavesExplored += 1
+
+			oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
+			// make move, eval, undo move
+			g.game.Move(move) // make
+			g.position = g.game.Position() // save state
+
+			// eval state, NOTE: move maybe should be a & pointer
+			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, false)
+
+			g.game = chess.NewGame(oldFen)
+			g.position = g.game.Position()
+
+			if result.score > bestScore {
+				bestScore = result.score
+				bestMove = *move
+				moveTree = result.moves
+			}
+
+			if result.score >= beta {
+				moveTree = append(moveTree, bestMove)
+				return MoveScore{moveTree, bestScore}
+			}
+
+			if result.score > alpha {
+				alpha = result.score
+			}
+		}
+
+	} else {
+		bestScore = MaxVal
+		for _, move := range moves {
+			g.leavesExplored += 1
+
+			oldFen, _ := chess.FEN(g.position.String())
+			g.game.Move(move)
+			g.position = g.game.Position()
+
+			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, true)
+
+			g.game = chess.NewGame(oldFen)
+			g.position = g.game.Position()
+
+			if result.score < bestScore {
+				bestScore = result.score
+				bestMove = *move
+				moveTree = result.moves
+			}
+			if result.score <= alpha {
+				moveTree = append(moveTree, bestMove)
+				return MoveScore{moveTree, bestScore}
+			}
+			if result.score < beta {
+				beta = result.score
+			}
+		}
+	}
+	moveTree = append(moveTree, bestMove)
+	return MoveScore{moveTree, bestScore}
+}
+
