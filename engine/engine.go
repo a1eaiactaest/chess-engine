@@ -269,6 +269,7 @@ func (g *Game) IDS(depth int, debug bool) string {
 	if len(moveTree) == 0 {
 		return g.position.ValidMoves()[0].String()
 	}
+	fmt.Printf("%v\n", moveTree)
 	return moveTree[len(moveTree)-1].String()
 
 
