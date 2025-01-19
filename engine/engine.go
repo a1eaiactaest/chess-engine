@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"github.com/notnil/chess"
 )
 
@@ -236,5 +237,53 @@ func (g *Game) Minmax(
 	}
 	moveTree = append(moveTree, bestMove)
 	return MoveScore{moveTree, bestScore}
+}
+
+func (g *Game) IDS(depth int, debug bool) string {
+	var moveTree []chess.Move
+	var score int
+
+	for i := 1; i <= depth; i++ {
+		result := g.Minmax(i, 0, nil, -MaxVal, MaxVal, g.position.Turn() == chess.White)
+		moveTree = result.moves
+		score = result.score
+	}
+
+	if debug {
+		fmt.Printf("Score :%d\n", score)
+		if len(moveTree) == 1 {
+			fmt.Println("Top moves:")
+			moves := g.position.ValidMoves()
+			for i := 0; i < min(3, len(moves)); i++ {
+				fmt.Printf("\t%s\n", moves[i])
+			}
+		} else {
+			fmt.Println("Future moves:")
+			for i := len(moveTree) - 1; i >= max(0, len(moveTree)-3); i-- {
+				fmt.Printf("\t%s\n", moveTree[i])
+			}
+		}
+	}
+
+	if len(moveTree) == 0 {
+		return g.position.ValidMoves()[0].String()
+	}
+	return moveTree[len(moveTree)-1].String()
+
+
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
