@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"os"
 	"fmt"
 	"github.com/notnil/chess"
 )
@@ -287,3 +288,21 @@ func max(a, b int) int {
 	return b
 }
 
+func FeedbackEngine() {
+	defaultFen := "r1b1k3/ppp1nQ2/4P1pN/2q5/8/6P1/5PBP/R3R1K1 b - - 2 28"
+	fen := defaultFen
+
+	if len(os.Args) > 1 {
+		fen = os.Args[1]
+	}
+
+	engine, err := NewGame(fen)
+	if err != nil {
+		fmt.Printf("Error initializing engine: %v\n", err)
+		os.Exit(1)
+	}
+
+	move := engine.IDS(5, true)
+	fmt.Printf("Best move: %s\n", move)
+	fmt.Printf("Evaluation : %d\n", engine.Evaluate())
+}
