@@ -266,13 +266,13 @@ func (g *Game) IDS(depth int, debug bool) string {
 		}
 	}
 
-	if len(moveTree) == 0 {
-		return g.position.ValidMoves()[0].String()
+	if len(moveTree) == 1 {
+		if g.game.Outcome() == chess.NoOutcome {
+			return g.position.ValidMoves()[0].String()
+		}
 	}
 	fmt.Printf("%v\n", moveTree)
 	return moveTree[len(moveTree)-1].String()
-
-
 }
 
 func min(a, b int) int {
@@ -303,7 +303,7 @@ func FeedbackEngine() {
 		os.Exit(1)
 	}
 
-	move := engine.IDS(5, true)
+	move := engine.IDS(5, false)
 	fmt.Printf("Best move: %s\n", move)
 	fmt.Printf("Evaluation : %d\n", engine.Evaluate())
 }
