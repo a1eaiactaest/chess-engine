@@ -3,6 +3,7 @@ package engine
 import (
 	"os"
 	"fmt"
+	"sort"
 	"github.com/notnil/chess"
 )
 
@@ -14,6 +15,7 @@ type Game struct {
 	leavesExplored    int
 	pieceValues       map[chess.PieceType]int
 	pieceSquareTables map[chess.PieceType][]int
+	positionStack     []*chess.Position
 }
 
 func NewGame(fen string) (*Game, error) {
@@ -104,7 +106,20 @@ func NewGame(fen string) (*Game, error) {
 		leavesExplored:    0,
 		pieceValues:       pieceValues,
 		pieceSquareTables: pieceSquareTables,
+		positionStack:     make([]*chess.Position, 0, 100),
 	}, nil
+}
+
+func (g *Game) pushPosition(pos *chess.Position) {
+	g.positionStack = append(g.positionStack, pos)
+}
+
+func (g *Game) popPosition() {
+	stackLen := len(g.positionStack)
+	if stackLen > 0 {
+		g.position = g.positionStack[stackLen-1]
+		g.positionStack = g.positionStack[:stackLen-1]
+	}
 }
 
 func (g *Game) Leaves() int {
@@ -152,7 +167,7 @@ func (g *Game) Minmax(
 	beta int,
 	isMax bool) MoveScore {
 
-	moveTree := make([]chess.Move, 0)
+	moveTree := make([]chess.Move, 0, 10)
 
 	if lastMove != nil {
 		moveTree = append(moveTree, *lastMove)
@@ -163,6 +178,12 @@ func (g *Game) Minmax(
 	}
 
 	moves := g.game.ValidMoves()
+
+	/*
+	sort.Slice(moves, func(i, j, int) bool {
+		return moveScore(moves[i]) > moveScore(moves[j])
+	})
+	*/
 
 	if len(moves) == 0 {
 		if g.game.Outcome() == chess.WhiteWon {
@@ -180,17 +201,24 @@ func (g *Game) Minmax(
 		bestScore = -MaxVal
 		for _, move := range moves {
 			g.leavesExplored += 1
+			g.pushPosition(g.position)
 
-			oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
+			/*
+			//oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
 			// make move, eval, undo move
-			g.game.Move(move) // make
-			g.position = g.game.Position() // save state
+			//g.game.Move(move) // make
+			//g.position = g.game.Position() // save state
+			*/
+
+			g.position = g.position.Update(move)
 
 			// eval state, NOTE: move maybe should be a & pointer
 			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, false)
 
-			g.game = chess.NewGame(oldFen)
-			g.position = g.game.Position()
+			g.popPosition()
+
+			//g.game = chess.NewGame(oldFen)
+			//g.position = g.game.Position()
 
 			if result.score > bestScore {
 				bestScore = result.score
@@ -213,14 +241,22 @@ func (g *Game) Minmax(
 		for _, move := range moves {
 			g.leavesExplored += 1
 
+			/*
 			oldFen, _ := chess.FEN(g.position.String())
 			g.game.Move(move)
 			g.position = g.game.Position()
+			*/
 
+			g.pushPosition(g.position)
+			g.position = g.position.Update(move)
 			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, true)
+			g.popPosition()
 
+
+			/*
 			g.game = chess.NewGame(oldFen)
 			g.position = g.game.Position()
+			*/
 
 			if result.score < bestScore {
 				bestScore = result.score
