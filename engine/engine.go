@@ -1,9 +1,9 @@
 package engine
 
 import (
-	"os"
 	"fmt"
-	"sort"
+	"os"
+
 	"github.com/notnil/chess"
 )
 
@@ -180,9 +180,9 @@ func (g *Game) Minmax(
 	moves := g.game.ValidMoves()
 
 	/*
-	sort.Slice(moves, func(i, j, int) bool {
-		return moveScore(moves[i]) > moveScore(moves[j])
-	})
+		sort.Slice(moves, func(i, j, int) bool {
+			return moveScore(moves[i]) > moveScore(moves[j])
+		})
 	*/
 
 	if len(moves) == 0 {
@@ -204,10 +204,10 @@ func (g *Game) Minmax(
 			g.pushPosition(g.position)
 
 			/*
-			//oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
-			// make move, eval, undo move
-			//g.game.Move(move) // make
-			//g.position = g.game.Position() // save state
+				//oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
+				// make move, eval, undo move
+				//g.game.Move(move) // make
+				//g.position = g.game.Position() // save state
 			*/
 
 			g.position = g.position.Update(move)
@@ -242,9 +242,9 @@ func (g *Game) Minmax(
 			g.leavesExplored += 1
 
 			/*
-			oldFen, _ := chess.FEN(g.position.String())
-			g.game.Move(move)
-			g.position = g.game.Position()
+				oldFen, _ := chess.FEN(g.position.String())
+				g.game.Move(move)
+				g.position = g.game.Position()
 			*/
 
 			g.pushPosition(g.position)
@@ -252,10 +252,9 @@ func (g *Game) Minmax(
 			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, true)
 			g.popPosition()
 
-
 			/*
-			g.game = chess.NewGame(oldFen)
-			g.position = g.game.Position()
+				g.game = chess.NewGame(oldFen)
+				g.position = g.game.Position()
 			*/
 
 			if result.score < bestScore {
@@ -292,12 +291,12 @@ func (g *Game) IDS(depth int, debug bool) string {
 			fmt.Println("Top moves:")
 			moves := g.position.ValidMoves()
 			for i := 0; i < min(3, len(moves)); i++ {
-				fmt.Printf("\t%s\n", moves[i])
+				fmt.Printf("\t%v\n", moves[i])
 			}
 		} else {
 			fmt.Println("Future moves:")
 			for i := len(moveTree) - 1; i >= max(0, len(moveTree)-3); i-- {
-				fmt.Printf("\t%s\n", moveTree[i])
+				fmt.Printf("\t%v\n", moveTree[i])
 			}
 		}
 	}
