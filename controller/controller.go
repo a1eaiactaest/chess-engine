@@ -1,9 +1,10 @@
-package controler
+package controller
 
 import (
 	"chess-engine/engine"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -32,26 +33,33 @@ type LichessAnalysisParams struct {
 // static
 var config Config
 
-func main() {
+func Main() {
 	config = Config{
 		Debug: os.Getenv("DEBUG") != "",
 	}
 
+	fmt.Printf("DEBUG: %v\n", config.Debug)
 	if !config.Debug {
-		log.SetOutput(nil)
+		log.SetOutput(io.Discard)
 	}
 
 	// TODO make this with react or something
-	//http.HandleFunc("/", handleIndex)
+	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/info", handleCalcMove)
 	http.HandleFunc("/analysis", handleAnalysis)
 
 	fs := http.FileServer(http.Dir("templates"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	port := "5000"
+	port := "2828"
 	fmt.Printf("server starting on port %s...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("engine controller says hello!"))
+	return
 }
 
 func handleCalcMove(w http.ResponseWriter, r *http.Request) {
