@@ -128,6 +128,10 @@ func (g *Game) Leaves() int {
 	return leaves
 }
 
+func (g *Game) GetLeaves() int {
+	return g.leavesExplored
+}
+
 func (g *Game) Evaluate() int {
 	val := 0
 	board := g.game.Position().Board()
