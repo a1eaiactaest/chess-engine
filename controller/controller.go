@@ -59,7 +59,7 @@ func Main() {
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("engine controller says hello!"))
-	return
+	//return
 }
 
 func handleCalcMove(w http.ResponseWriter, r *http.Request) {
