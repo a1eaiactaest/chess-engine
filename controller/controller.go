@@ -33,6 +33,21 @@ type LichessAnalysisParams struct {
 // static
 var config Config
 
+func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 func Main() {
 	config = Config{
 		Debug: os.Getenv("DEBUG") != "",
@@ -44,9 +59,9 @@ func Main() {
 	}
 
 	// TODO make this with react or something
-	http.HandleFunc("/", handleIndex)
-	http.HandleFunc("/info", handleCalcMove)
-	http.HandleFunc("/analysis", handleAnalysis)
+	http.HandleFunc("/", corsMiddleware(handleIndex))
+	http.HandleFunc("/info", corsMiddleware(handleCalcMove))
+	http.HandleFunc("/analysis", corsMiddleware(handleAnalysis))
 
 	fs := http.FileServer(http.Dir("templates"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -59,7 +74,6 @@ func Main() {
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("engine controller says hello!"))
-	//return
 }
 
 func handleCalcMove(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +109,6 @@ func handleCalcMove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(move)) // move is a string i suppose
-
 }
 
 func handleAnalysis(w http.ResponseWriter, r *http.Request) {

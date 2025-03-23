@@ -343,6 +343,6 @@ func FeedbackEngine() {
 	}
 
 	move := engine.IDS(5, false)
-	fmt.Printf("Best move: %s\n", move)
+	fmt.Printf("Best move: %s for %s\n", move, engine.game.Position().Turn())
 	fmt.Printf("Evaluation : %d\n", engine.Evaluate())
 }
