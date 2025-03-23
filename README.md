@@ -76,6 +76,3 @@ go run main.go
 - `controller/` - Web server and API handlers
 - `test/` - Test utilities
 
-## License
-
-[Add your license information here]
