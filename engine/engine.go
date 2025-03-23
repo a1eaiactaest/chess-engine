@@ -448,7 +448,32 @@ func (g *Game) IDS(depth int, isMax bool) string {
 	for d := 1; d <= maxDepth; d++ {
 		result := g.Minmax(d, 0, nil, -MaxVal, MaxVal, isMax)
 		if len(result.moves) > 0 {
-			bestMove = result.moves[0].String()
+			// Validate that the move is legal before returning it
+			move := result.moves[0]
+			validMoves := g.game.ValidMoves()
+			isValid := false
+			for _, validMove := range validMoves {
+				if validMove.S1() == move.S1() && validMove.S2() == move.S2() {
+					isValid = true
+					break
+				}
+			}
+			if isValid {
+				bestMove = move.String()
+			} else {
+				// If the move is invalid, try to find any legal move
+				if len(validMoves) > 0 {
+					bestMove = validMoves[0].String()
+				}
+			}
+		}
+	}
+
+	// If we still don't have a valid move, try to find any legal move
+	if bestMove == "" {
+		validMoves := g.game.ValidMoves()
+		if len(validMoves) > 0 {
+			bestMove = validMoves[0].String()
 		}
 	}
 
