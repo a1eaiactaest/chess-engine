@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/notnil/chess"
 )
@@ -132,10 +133,118 @@ func (g *Game) GetLeaves() int {
 	return g.leavesExplored
 }
 
+func (g *Game) evaluateMobility() int {
+	// Count number of legal moves for each side
+	whiteMoves := len(g.game.ValidMoves())
+	if whiteMoves == 0 {
+		return 0
+	}
+	// Use first valid move instead of empty move
+	firstMove := g.game.ValidMoves()[0]
+	g.game.Move(firstMove)
+	blackMoves := len(g.game.ValidMoves())
+	g.game.Position() // Reset position to previous state
+	return (whiteMoves - blackMoves) * 10
+}
+
+func (g *Game) evaluateKingSafety() int {
+	val := 0
+	board := g.game.Position().Board()
+	turn := g.game.Position().Turn()
+
+	// Find king positions first
+	var whiteKing, blackKing chess.Square
+	for sq := 0; sq < 64; sq++ {
+		p := board.Piece(chess.Square(sq))
+		if p == chess.NoPiece {
+			continue
+		}
+		if p.Type() == chess.King {
+			if p.Color() == chess.White {
+				whiteKing = chess.Square(sq)
+			} else {
+				blackKing = chess.Square(sq)
+			}
+		}
+	}
+
+	// Count attacking pieces near the king
+	for sq := 0; sq < 64; sq++ {
+		p := board.Piece(chess.Square(sq))
+		if p == chess.NoPiece {
+			continue
+		}
+
+		// Only evaluate pieces attacking the king
+		if p.Color() != turn {
+			kingSquare := whiteKing
+			if p.Color() == chess.White {
+				kingSquare = blackKing
+			}
+
+			// Calculate Manhattan distance to king
+			kingFile := int(kingSquare) % 8
+			kingRank := int(kingSquare) / 8
+			pieceFile := sq % 8
+			pieceRank := sq / 8
+			distance := abs(kingFile-pieceFile) + abs(kingRank-pieceRank)
+
+			if distance <= 2 {
+				val -= 50 * int(p.Type())
+			}
+		}
+	}
+
+	return val
+}
+
+func (g *Game) evaluatePawnStructure() int {
+	val := 0
+	board := g.game.Position().Board()
+
+	// Create a map to track pawns by file
+	pawnsByFile := make(map[int][]chess.Square)
+	for sq := 0; sq < 64; sq++ {
+		p := board.Piece(chess.Square(sq))
+		if p == chess.NoPiece || p.Type() != chess.Pawn {
+			continue
+		}
+		file := sq % 8
+		pawnsByFile[file] = append(pawnsByFile[file], chess.Square(sq))
+	}
+
+	// Evaluate doubled pawns
+	for _, pawns := range pawnsByFile {
+		if len(pawns) > 1 {
+			val -= 20 * (len(pawns) - 1)
+		}
+	}
+
+	// Evaluate isolated pawns
+	for file, pawns := range pawnsByFile {
+		hasNeighbor := false
+		for offset := -1; offset <= 1; offset += 2 {
+			neighborFile := file + offset
+			if neighborFile >= 0 && neighborFile < 8 {
+				if len(pawnsByFile[neighborFile]) > 0 {
+					hasNeighbor = true
+					break
+				}
+			}
+		}
+		if !hasNeighbor {
+			val -= 30 * len(pawns)
+		}
+	}
+
+	return val
+}
+
 func (g *Game) Evaluate() int {
 	val := 0
 	board := g.game.Position().Board()
 
+	// Material and piece-square tables
 	for sq := 0; sq < 64; sq++ {
 		p := board.Piece(chess.Square(sq))
 		if p == chess.NoPiece {
@@ -155,12 +264,67 @@ func (g *Game) Evaluate() int {
 			}
 		}
 	}
+
+	// Add mobility evaluation
+	val += g.evaluateMobility()
+
+	// Add king safety evaluation
+	val += g.evaluateKingSafety()
+
+	// Add pawn structure evaluation
+	val += g.evaluatePawnStructure()
+
 	return val
 }
 
 type MoveScore struct {
 	moves []chess.Move
 	score int
+}
+
+func (g *Game) moveScore(move *chess.Move) int {
+	score := 0
+	board := g.game.Position().Board()
+	targetSq := move.S2()
+	targetPiece := board.Piece(targetSq)
+
+	// Captures
+	if targetPiece != chess.NoPiece {
+		score += 10 * int(g.pieceValues[targetPiece.Type()])
+	}
+
+	// Center control
+	centerSquares := []chess.Square{chess.E4, chess.E5, chess.D4, chess.D5}
+	for _, sq := range centerSquares {
+		if targetSq == sq {
+			score += 30
+		}
+	}
+
+	// Development
+	if g.game.Position().Turn() == chess.White {
+		if move.S1() == chess.E2 && move.S2() == chess.E4 {
+			score += 50
+		}
+		if move.S1() == chess.G1 && move.S2() == chess.F3 {
+			score += 30
+		}
+		if move.S1() == chess.F1 && (move.S2() == chess.C4 || move.S2() == chess.B5) {
+			score += 30
+		}
+	} else {
+		if move.S1() == chess.E7 && move.S2() == chess.E5 {
+			score += 50
+		}
+		if move.S1() == chess.B8 && move.S2() == chess.C6 {
+			score += 30
+		}
+		if move.S1() == chess.F8 && (move.S2() == chess.C5 || move.S2() == chess.B4) {
+			score += 30
+		}
+	}
+
+	return score
 }
 
 func (g *Game) Minmax(
@@ -183,11 +347,10 @@ func (g *Game) Minmax(
 
 	moves := g.game.ValidMoves()
 
-	/*
-		sort.Slice(moves, func(i, j, int) bool {
-			return moveScore(moves[i]) > moveScore(moves[j])
-		})
-	*/
+	// Sort moves for better alpha-beta pruning
+	sort.Slice(moves, func(i, j int) bool {
+		return g.moveScore(moves[i]) > g.moveScore(moves[j])
+	})
 
 	if len(moves) == 0 {
 		if g.game.Outcome() == chess.WhiteWon {
@@ -205,24 +368,20 @@ func (g *Game) Minmax(
 		bestScore = -MaxVal
 		for _, move := range moves {
 			g.leavesExplored += 1
-			g.pushPosition(g.position)
 
-			/*
-				//oldFen, _ := chess.FEN(g.position.String()) // this is dumb but there's no other way
-				// make move, eval, undo move
-				//g.game.Move(move) // make
-				//g.position = g.game.Position() // save state
-			*/
+			// Save current position
+			oldFen := g.game.Position().String()
 
-			g.position = g.position.Update(move)
+			// Make move
+			g.game.Move(move)
+			g.position = g.game.Position()
 
-			// eval state, NOTE: move maybe should be a & pointer
 			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, false)
 
-			g.popPosition()
-
-			//g.game = chess.NewGame(oldFen)
-			//g.position = g.game.Position()
+			// Restore position
+			oldPos, _ := chess.FEN(oldFen)
+			g.game = chess.NewGame(oldPos)
+			g.position = g.game.Position()
 
 			if result.score > bestScore {
 				bestScore = result.score
@@ -245,73 +404,55 @@ func (g *Game) Minmax(
 		for _, move := range moves {
 			g.leavesExplored += 1
 
-			/*
-				oldFen, _ := chess.FEN(g.position.String())
-				g.game.Move(move)
-				g.position = g.game.Position()
-			*/
+			// Save current position
+			oldFen := g.game.Position().String()
 
-			g.pushPosition(g.position)
-			g.position = g.position.Update(move)
+			// Make move
+			g.game.Move(move)
+			g.position = g.game.Position()
+
 			result := g.Minmax(fromBot-1, depth+1, move, alpha, beta, true)
-			g.popPosition()
 
-			/*
-				g.game = chess.NewGame(oldFen)
-				g.position = g.game.Position()
-			*/
+			// Restore position
+			oldPos, _ := chess.FEN(oldFen)
+			g.game = chess.NewGame(oldPos)
+			g.position = g.game.Position()
 
 			if result.score < bestScore {
 				bestScore = result.score
 				bestMove = *move
 				moveTree = result.moves
 			}
+
 			if result.score <= alpha {
 				moveTree = append(moveTree, bestMove)
 				return MoveScore{moveTree, bestScore}
 			}
+
 			if result.score < beta {
 				beta = result.score
 			}
 		}
 	}
+
 	moveTree = append(moveTree, bestMove)
 	return MoveScore{moveTree, bestScore}
 }
 
-func (g *Game) IDS(depth int, debug bool) string {
-	var moveTree []chess.Move
-	var score int
+func (g *Game) IDS(depth int, isMax bool) string {
+	bestMove := ""
+	_ = -MaxVal // Initialize but don't use bestScore since we only need the move
 
-	for i := 1; i <= depth; i++ {
-		result := g.Minmax(i, 0, nil, -MaxVal, MaxVal, g.position.Turn() == chess.White)
-		moveTree = result.moves
-		score = result.score
-	}
-
-	if debug {
-		fmt.Printf("Score :%d\n", score)
-		if len(moveTree) == 1 {
-			fmt.Println("Top moves:")
-			moves := g.position.ValidMoves()
-			for i := 0; i < min(3, len(moves)); i++ {
-				fmt.Printf("\t%v\n", moves[i])
-			}
-		} else {
-			fmt.Println("Future moves:")
-			for i := len(moveTree) - 1; i >= max(0, len(moveTree)-3); i-- {
-				fmt.Printf("\t%v\n", moveTree[i])
-			}
+	// Start with a smaller depth and gradually increase
+	maxDepth := min(depth, 4) // Limit maximum depth to prevent hanging
+	for d := 1; d <= maxDepth; d++ {
+		result := g.Minmax(d, 0, nil, -MaxVal, MaxVal, isMax)
+		if len(result.moves) > 0 {
+			bestMove = result.moves[0].String()
 		}
 	}
 
-	if len(moveTree) == 1 {
-		if g.game.Outcome() == chess.NoOutcome {
-			return g.position.ValidMoves()[0].String()
-		}
-	}
-	fmt.Printf("%v\n", moveTree)
-	return moveTree[len(moveTree)-1].String()
+	return bestMove
 }
 
 func min(a, b int) int {
@@ -321,11 +462,11 @@ func min(a, b int) int {
 	return b
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+func abs(x int) int {
+	if x < 0 {
+		return -x
 	}
-	return b
+	return x
 }
 
 func FeedbackEngine() {

@@ -35,7 +35,7 @@ export const ChessGame: React.FC = () => {
       setGameState(prev => ({ ...prev, isThinking: true }));
       
       const response = await axios.post<string>(`${API_URL}/info`, {
-        depth: 4,
+        depth: 3,
         fen: newGame.fen(),
       });
 
@@ -47,21 +47,51 @@ export const ChessGame: React.FC = () => {
       const computerFrom = computerMove.slice(0, 2) as Square;
       const computerTo = computerMove.slice(2, 4) as Square;
       
-      const computerMoveResult = newGameAfterComputer.move({
+      // Validate that the move is legal
+      const validMoves = newGameAfterComputer.moves({ square: computerFrom, verbose: true });
+      const isValidMove = validMoves.some(move => move.to === computerTo);
+      
+      if (!isValidMove) {
+        console.error('Invalid computer move:', computerMove);
+        console.error('Valid moves from', computerFrom, ':', validMoves.map(m => m.to).join(', '));
+        return;
+      }
+
+      // Check if this is a pawn promotion
+      const isPawnPromotion = (from: Square, to: Square) => {
+        const piece = newGameAfterComputer.get(from);
+        return piece?.type === 'p' && (to[1] === '8' || to[1] === '1');
+      };
+
+      const moveOptions: any = {
         from: computerFrom,
         to: computerTo,
-        promotion: 'q' // Always promote to queen for simplicity
-      });
+      };
+
+      // Only add promotion if it's a pawn promotion
+      if (isPawnPromotion(computerFrom, computerTo)) {
+        moveOptions.promotion = 'q';
+      }
       
-      if (computerMoveResult) {
-        setGameState(prev => ({
-          ...prev,
-          game: newGameAfterComputer,
-          isThinking: false,
-          lastMove: computerMove,
-        }));
-      } else {
-        console.error('Invalid computer move:', computerMove);
+      try {
+        const computerMoveResult = newGameAfterComputer.move(moveOptions);
+        
+        if (computerMoveResult) {
+          setGameState(prev => ({
+            ...prev,
+            game: newGameAfterComputer,
+            isThinking: false,
+            lastMove: computerMove,
+          }));
+        } else {
+          console.error('Failed to make computer move:', computerMove);
+          console.error('Move options:', moveOptions);
+        }
+      } catch (error) {
+        console.error('Error executing computer move:', error);
+        console.error('Move:', computerMove);
+        console.error('Move options:', moveOptions);
+        console.error('Game state:', newGameAfterComputer.fen());
       }
     } catch (error) {
       console.error('Error making move:', error);
